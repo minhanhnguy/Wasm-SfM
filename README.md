@@ -1,2 +1,2 @@
 # Wasm-SfM
-A WebAssembly module for performing Structure from Motion (SfM) tasks.
+WebAssembly modules for performing Structure from Motion (SfM) tasks.
