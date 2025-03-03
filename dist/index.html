@@ -1,62 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>WebAssembly Example</title>
-<link rel="stylesheet" href="./style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Processing with WebAssembly</title>
 </head>
 <body>
+    <input type="file" id="upload" accept="image/png">
+    <canvas id="canvas"></canvas>
+    <script src="image_input.js"></script> 
 
-  <h1>C++ Functions in JavaScript via WebAssembly</h1>
-  <div id="loading">Loading WebAssembly module...</div>
-  <div id="output"></div>
-
-  <script>
-    var Module = {
-      onRuntimeInitialized: function() {
-        // Hide loading message
-        document.getElementById('loading').style.display = 'none';
-        
-        // Create JavaScript functions that call into C++
-        const add = Module.cwrap('add', 'number', ['number', 'number']);
-        const subtract = Module.cwrap('subtract', 'number', ['number', 'number']);
-        const multiply = Module.cwrap('multiply', 'number', ['number', 'number']);
-        const divide = Module.cwrap('divide', 'number', ['number', 'number']);
-        
-        // Get output element
-        const output = document.getElementById('output');
-        
-        // Create and append result elements
-        function displayResult(label, result) {
-          const resultDiv = document.createElement('div');
-          resultDiv.className = 'result';
-          
-          const labelElement = document.createElement('div');
-          labelElement.className = 'label';
-          labelElement.textContent = label;
-          
-          const valueElement = document.createElement('div');
-          valueElement.textContent = result;
-          
-          resultDiv.appendChild(labelElement);
-          resultDiv.appendChild(valueElement);
-          output.appendChild(resultDiv);
+    <script>
+        let wasmReady = false;
+        let malloc_image, free_image, convert_to_gray;
+    
+        // Ensure WebAssembly is loaded before calling functions
+        Module.onRuntimeInitialized = function() {
+            console.log("WebAssembly Loaded...");
+            malloc_image = Module.cwrap('malloc_image', 'number', ['number']);
+            free_image = Module.cwrap('free_image', null, ['number']);
+            convert_to_gray = Module.cwrap('convert_to_gray', null, ['number', 'number', 'number']);
+            wasmReady = true;  // Set flag when WASM is ready
+        };
+    
+        document.getElementById('upload').addEventListener('change', function(event) {
+            if (!wasmReady) {
+                console.error("WASM module not yet initialized. Please wait...");
+                return;
+            }
+    
+            const file = event.target.files[0];
+            if (!file) return;
+    
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    processImage(img);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    
+        function processImage(img) {
+            console.log("Processing Image...");
+    
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+    
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+    
+            const imageData = ctx.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+            const dataSize = data.length;
+    
+            if (!malloc_image || !free_image || !convert_to_gray) {
+                console.error("WASM functions not initialized yet.");
+                return;
+            }
+    
+            // Allocate memory in WebAssembly
+            const ptr = malloc_image(dataSize);
+            if (!ptr) {
+                console.error('Memory allocation failed');
+                return;
+            }
+    
+            // Copy image data to WebAssembly
+            Module.HEAPU8.set(data, ptr);
+    
+            // Process image
+            convert_to_gray(ptr, img.width, img.height);
+    
+            // Copy processed data back
+            const processedData = new Uint8ClampedArray(Module.HEAPU8.subarray(ptr, ptr + dataSize));
+            
+            // Preserve alpha channel
+            for (let i = 3; i < dataSize; i += 4) {
+                processedData[i] = data[i];
+            }
+    
+            imageData.data.set(processedData);
+    
+            // Free memory
+            free_image(ptr);
+    
+            // Display the output
+            ctx.putImageData(imageData, 0, 0);
         }
-
-        displayResult("Basic Addition (5 + 3)", add(5, 3));
-        displayResult("Subtraction (5 - 3)", subtract(5, 3));
-        displayResult("Multiplication (5 * 3)", multiply(5, 3));
-        displayResult("Division (6 / 2)", divide(6, 2));
-        
-      }
-    };
-
-    var script = document.createElement('script');
-    script.src = 'math_lib.js';
-    script.onerror = function() {
-      document.getElementById('loading').textContent = 'Error loading WebAssembly module. Make sure math_lib.js exists.';
-    };
-    document.body.appendChild(script);
-  </script>
-
+    </script>    
 </body>
 </html>
