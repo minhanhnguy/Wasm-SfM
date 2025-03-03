@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>WebAssembly Example</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <h1>C++ Functions in JavaScript via WebAssembly</h1>
+  <div id="loading">Loading WebAssembly module...</div>
+  <div id="output"></div>
+
+  <script>
+    var Module = {
+      onRuntimeInitialized: function() {
+        // Hide loading message
+        document.getElementById('loading').style.display = 'none';
+        
+        // Create JavaScript functions that call into C++
+        const add = Module.cwrap('add', 'number', ['number', 'number']);
+        const subtract = Module.cwrap('subtract', 'number', ['number', 'number']);
+        const multiply = Module.cwrap('multiply', 'number', ['number', 'number']);
+        const divide = Module.cwrap('divide', 'number', ['number', 'number']);
+        
+        // Get output element
+        const output = document.getElementById('output');
+        
+        // Create and append result elements
+        function displayResult(label, result) {
+          const resultDiv = document.createElement('div');
+          resultDiv.className = 'result';
+          
+          const labelElement = document.createElement('div');
+          labelElement.className = 'label';
+          labelElement.textContent = label;
+          
+          const valueElement = document.createElement('div');
+          valueElement.textContent = result;
+          
+          resultDiv.appendChild(labelElement);
+          resultDiv.appendChild(valueElement);
+          output.appendChild(resultDiv);
+        }
+
+        displayResult("Basic Addition (5 + 3)", add(5, 3));
+        displayResult("Subtraction (5 - 3)", subtract(5, 3));
+        displayResult("Multiplication (5 * 3)", multiply(5, 3));
+        displayResult("Division (6 / 2)", divide(6, 2));
+        
+      }
+    };
+
+    var script = document.createElement('script');
+    script.src = 'math_lib.js';
+    script.onerror = function() {
+      document.getElementById('loading').textContent = 'Error loading WebAssembly module. Make sure math_lib.js exists.';
+    };
+    document.body.appendChild(script);
+  </script>
+
+</body>
+</html>
